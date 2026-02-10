@@ -14,7 +14,7 @@ export class PostScheduler {
   }
 
   start(): void {
-    // 毎日0:00に「今日の投稿時間」をランダム決定
+    // 毎日0:00（指定タイムゾーン）に「今日の投稿時間」をランダム決定
     this.dailyCron = cronSchedule(
       '0 0 * * *',
       () => {
@@ -42,6 +42,53 @@ export class PostScheduler {
     logger.info('スケジューラー停止');
   }
 
+  /**
+   * 指定タイムゾーンでの現在時刻を取得
+   */
+  private getNowInTimezone(): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.config.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+
+    const parts = formatter.formatToParts(new Date());
+    const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value || '0');
+
+    return {
+      year: get('year'),
+      month: get('month'),
+      day: get('day'),
+      hour: get('hour'),
+      minute: get('minute'),
+      second: get('second'),
+    };
+  }
+
+  /**
+   * 指定タイムゾーンの日時からUTCのDateオブジェクトを作成
+   */
+  private tzToUtcDate(year: number, month: number, day: number, hour: number, minute: number, second: number): Date {
+    // 一旦その日時の文字列を作り、指定タイムゾーンとして解釈する
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+
+    // タイムゾーンのオフセットを計算
+    const tempDate = new Date(dateStr + 'Z'); // UTC として仮解釈
+    const utcStr = tempDate.toLocaleString('en-US', { timeZone: 'UTC', hour12: false });
+    const tzStr = tempDate.toLocaleString('en-US', { timeZone: this.config.timezone, hour12: false });
+
+    const utcTime = new Date(utcStr).getTime();
+    const tzTime = new Date(tzStr).getTime();
+    const offset = tzTime - utcTime; // TZのオフセット（ミリ秒）
+
+    return new Date(tempDate.getTime() - offset);
+  }
+
   private scheduleToday(): void {
     // 既存のタイマーをクリア
     for (const timer of this.postTimers) {
@@ -49,22 +96,28 @@ export class PostScheduler {
     }
     this.postTimers = [];
 
-    const now = new Date();
+    const nowUtc = new Date();
+    const nowTz = this.getNowInTimezone();
     const times = this.generateRandomTimes(this.config.postsPerDay);
 
+    logger.info(`現在のタイムゾーン時刻: ${nowTz.year}-${String(nowTz.month).padStart(2, '0')}-${String(nowTz.day).padStart(2, '0')} ${String(nowTz.hour).padStart(2, '0')}:${String(nowTz.minute).padStart(2, '0')}`);
+
     for (const time of times) {
-      const scheduledDate = new Date(now);
-      scheduledDate.setHours(time.hour, time.minute, time.second, 0);
+      // 指定タイムゾーンの「今日の time.hour:time.minute:time.second」をUTC Dateに変換
+      const scheduledUtc = this.tzToUtcDate(
+        nowTz.year, nowTz.month, nowTz.day,
+        time.hour, time.minute, time.second,
+      );
 
       // 既に過ぎた時間はスキップ
-      if (scheduledDate <= now) {
+      if (scheduledUtc <= nowUtc) {
         logger.info(
           `投稿時間 ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')} は既に過ぎたためスキップ`,
         );
         continue;
       }
 
-      const delay = scheduledDate.getTime() - now.getTime();
+      const delay = scheduledUtc.getTime() - nowUtc.getTime();
       const timer = setTimeout(async () => {
         try {
           await this.onPost();
@@ -77,12 +130,9 @@ export class PostScheduler {
 
       this.postTimers.push(timer);
 
-      const timeStr = scheduledDate.toLocaleString('ja-JP', {
-        timeZone: this.config.timezone,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-      logger.info(`本日の投稿予定: ${timeStr}`);
+      logger.info(
+        `本日の投稿予定: ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')} (${this.config.timezone})`,
+      );
     }
 
     if (this.postTimers.length === 0) {
