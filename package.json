@@ -1,0 +1,43 @@
+{
+  "name": "auto-x",
+  "version": "1.0.0",
+  "description": "X (Twitter) 自動投稿ツール",
+  "main": "dist/cli.js",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/cli.ts start",
+    "post": "tsx src/cli.ts post",
+    "post:dry": "tsx src/cli.ts post --dry-run",
+    "config": "tsx src/cli.ts config",
+    "history": "tsx src/cli.ts history",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yuuga2001/auto-x.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Yuuga2001/auto-x/issues"
+  },
+  "homepage": "https://github.com/Yuuga2001/auto-x#readme",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "dotenv": "^17.2.4",
+    "node-cron": "^4.2.1",
+    "openai": "^6.19.0",
+    "twitter-api-v2": "^1.29.0",
+    "winston": "^3.19.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.2",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
