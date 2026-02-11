@@ -26,23 +26,33 @@ program
   .description('今すぐ1件投稿')
   .option('--dry-run', 'コンテンツ生成のみ（投稿しない）')
   .option('--note', 'note記事ポストを強制（テスト用）')
-  .action(async (options: { dryRun?: boolean; note?: boolean }) => {
+  .option('--normal', '通常ポストを強制（テスト用）')
+  .action(async (options: { dryRun?: boolean; note?: boolean; normal?: boolean }) => {
     const history = new PostHistory();
     const recentPosts = history.getRecentPosts(20);
 
     if (options.dryRun) {
       const config = loadConfigForDryRun();
       const generator = new ContentGenerator(config);
+      const NOTE_RATIO = 0.7;
 
-      if (options.note) {
-        const noteLoader = new NoteLoader();
-        if (!noteLoader.exists() || noteLoader.count() === 0) {
+      // --note: 強制note / --normal: 強制通常 / 指定なし: 70/30自動振り分け
+      const noteLoader = new NoteLoader();
+      const hasNotes = noteLoader.exists() && noteLoader.count() > 0;
+      const isNotePost = options.note
+        ? true
+        : options.normal
+          ? false
+          : hasNotes && Math.random() < NOTE_RATIO;
+
+      if (isNotePost) {
+        if (!hasNotes) {
           console.error('notes.csv が見つからないか、記事がありません。');
           process.exit(1);
         }
         const article = noteLoader.pickRandom()!;
 
-        console.log(`note記事ポスト生成中... [${article.title}]`);
+        console.log(`[note選択] note記事ポスト生成中... [${article.title}]`);
         const text = await generator.generateNotePost(article.title, recentPosts);
         const fullContent = `${text}\n\n ${article.url}`;
 
@@ -50,7 +60,7 @@ program
         console.log(fullContent);
         console.log(`--- 文章文字数: ${text.length} / 全体文字数: ${fullContent.length} ---\n`);
       } else {
-        console.log('通常ポスト生成中...');
+        console.log(`[通常選択] 通常ポスト生成中...`);
         const content = await generator.generate(recentPosts);
 
         console.log('\n--- 生成されたコンテンツ ---');
@@ -61,20 +71,29 @@ program
       const config = loadConfig();
       const generator = new ContentGenerator(config);
       const poster = new XPoster(config);
+      const NOTE_RATIO = 0.7;
 
       let content: string;
       let type: 'normal' | 'note' = 'normal';
       let noteUrl: string | undefined;
 
-      if (options.note) {
-        const noteLoader = new NoteLoader();
-        if (!noteLoader.exists() || noteLoader.count() === 0) {
+      // --note: 強制note / --normal: 強制通常 / 指定なし: 70/30自動振り分け
+      const noteLoader = new NoteLoader();
+      const hasNotes = noteLoader.exists() && noteLoader.count() > 0;
+      const isNotePost = options.note
+        ? true
+        : options.normal
+          ? false
+          : hasNotes && Math.random() < NOTE_RATIO;
+
+      if (isNotePost) {
+        if (!hasNotes) {
           console.error('notes.csv が見つからないか、記事がありません。');
           process.exit(1);
         }
         const article = noteLoader.pickRandom()!;
 
-        console.log(`note記事ポスト生成中... [${article.title}]`);
+        console.log(`[note選択] note記事ポスト生成中... [${article.title}]`);
         const text = await generator.generateNotePost(article.title, recentPosts);
         content = `${text}\n\n ${article.url}`;
         type = 'note';
@@ -84,7 +103,7 @@ program
         console.log(content);
         console.log(`--- 文章文字数: ${text.length} ---\n`);
       } else {
-        console.log('通常ポスト生成中...');
+        console.log('[通常選択] 通常ポスト生成中...');
         content = await generator.generate(recentPosts);
 
         console.log('\n--- 生成されたコンテンツ ---');
