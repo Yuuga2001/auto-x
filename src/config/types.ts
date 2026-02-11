@@ -46,6 +46,8 @@ export interface PostRecord {
   timestamp: string;
   success: boolean;
   error?: string;
+  type?: 'normal' | 'note';
+  noteUrl?: string;
 }
 
 export interface PostResult {
